@@ -21,6 +21,9 @@ success() { echo "${green}✓${reset} $*"; }
 warn()    { echo "${yellow}!${reset} $*"; }
 error()   { echo "${red}✗${reset} $*" >&2; }
 
+script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "$script_dir/cache/security_download.sh"
+
 # Checks to see if the script is being run as a regular user. If it is being run as root, it will exit with an error message.
 if [[ $EUID -eq 0 ]]; then
     error "Run this script as a regular user, not as root."
@@ -36,6 +39,17 @@ has() {
     command -v "$1" &> /dev/null
 }
 
+is_available() {
+    local req
+    for req in $1; do
+        has "$req" && return 0
+    done
+    [[ -z "$1" ]]
+}
+
+
+
+#Sets an empty array for both Succeded and Failed
 succeeded=()
 failed=()
 
@@ -332,53 +346,69 @@ update_all() {
 }
 
 
+# Security Check: download/refresh tracker data and narrow it to installed packages
+show_security() {
+    if download_security_tracker; then
+        prune_security_data
+        info "$(jq length "$relevant_file") advisories mention packages you have installed"
+    else
+        warn "Skipping security checks"
+    fi
+}
+
 #-------------------------------------------------------------------
 #                               Menu                               |
 #-------------------------------------------------------------------
 
 # Function to display the menu options to the user
 menu_items=(
-    '#Updates'
-    "1|a|Update all packages|update_all|sudo"
-    "2|s|System packages (pacman)|update_system|sudo"
-    "3|u|AUR packages|update_aur|"
-    "4||Flatpak apps|update_flatpak|"
-    "5||Snap packages|update_snap|sudo"
-    "6||pipx packages|update_pipx|"
-    "7||Cargo packages|update_cargo|"
-    "8||npm packages|update_npm|"
-    "9||Firmware|update_firmware|sudo"
-    "#Info"
-    "10|p|Preview pending updates|preview_updates|"
-    "11|i|Show system info|show_info|"
-    "#Exit"
-    "0|q|Exit|quit|"
+    '#Review (start here)'
+    "1|p|Preview pending updates|preview_updates||"
+    "2|v|Security check|show_security||"
+  # "3|n|Arch news|show_news||"                    ← when built
+  # "4|r|Full report|show_report||"                ← when built
+    '#Update'
+    "10|a|Update all packages|update_all|sudo|"
+    "11|s|System packages (pacman)|update_system|sudo|pacman"
+    "12|u|AUR packages|update_aur||yay paru pikaur trizen"
+    "13||Flatpak apps|update_flatpak||flatpak"
+    "14||Snap packages|update_snap|sudo|snap"
+    "15||pipx packages|update_pipx||pipx"
+    "16||Cargo packages|update_cargo||cargo"
+    "17||npm packages|update_npm||npm"
+    "18||Firmware|update_firmware|sudo|fwupdmgr"
+    '#Tools'
+    "20|i|Show system info|show_info||"
+  # "21|f|Refresh security data|refresh_security||" ← when built
+    "0|q|Exit|quit||"
 )
 default_choice="p"
 
+
 show_menu() {
-    local item num key label action flag color tag 
+    local item num key label action flag requires color tag
     for item in "${menu_items[@]}"; do
         if [[ "$item" == \#* ]]; then
-        echo
-        echo "${bold}${item#\#}${reset}"
-        continue
+            echo
+            echo "${bold}${item#\#}${reset}"
+            continue
         fi
-        IFS='|' read -r num key label action flag <<< "$item"
+        IFS='|' read -r num key label action flag requires <<< "$item"
+        is_available "$requires" || continue
         color="" tag=""
         if [[ "$flag" == sudo ]]; then color="$yellow"; tag=" (sudo)"; fi
         printf '  %3s) %-3s %s%s%s%s\n' "$num" "${key:+[$key]}" "$color" "$label" "$tag" "$reset"
     done
     echo
-
 }
 
 # Arrow-key menu with fzf. Prints the chosen numbers, e.g. "3 4 6".
 fzf_pick() {
-    local item num key label action flag
+    local item num key label action flag requires
     for item in "${menu_items[@]}"; do
         [[ "$item" == \#* ]] && continue
-        IFS='|' read -r num key label action flag <<< "$item"
+        IFS='|' read -r num key label action flag requires <<< "$item"
+        is_available "$requires" || continue
         printf '%s) %s%s\n' "$num" "$label" "${flag:+ (sudo)}"
     done | fzf --multi --reverse --height=60% --prompt="PACSWEEP> " \
                --header="Up/Down = move, Tab = select several, Enter = run, Esc = quit" \
@@ -387,11 +417,12 @@ fzf_pick() {
 
 # Turn one token ("3", "a", "quit") into "function|flag|label". Fails if unknown.
 resolve_choice() {
-    local tok="${1,,}" item num key label action flag
+    local tok="${1,,}" item num key label action flag requires
     case "$tok" in quit|exit) tok="q" ;; esac
     for item in "${menu_items[@]}"; do
         [[ "$item" == \#* ]] && continue
-        IFS='|' read -r num key label action flag <<< "$item"
+        IFS='|' read -r num key label action flag requires <<< "$item"
+        is_available "$requires" || continue
         if [[ "$tok" == "$num" || ( -n "$key" && "$tok" == "$key" ) ]]; then
             echo "$action|$flag|$label"
             return 0
@@ -399,7 +430,6 @@ resolve_choice() {
     done
     return 1
 }
-
 # Ask a yes/no question. Enter = yes.
 confirm() {
     local ans
@@ -439,10 +469,11 @@ flag_name() {
 
 # Find the menu entry for a command-line flag (without the leading --)
 resolve_flag() {
-    local item num key label action flag
+    local item num key label action flag requires
     for item in "${menu_items[@]}"; do
         [[ "$item" == \#* ]] && continue
-        IFS='|' read -r num key label action flag <<< "$item"
+        IFS='|' read -r num key label action flag requires <<< "$item"
+        is_available "$requires" || continue
         [[ "$action" == quit ]] && continue
         if [[ "$1" == "$(flag_name "$action")" ]]; then
             echo "$action|$flag|$label"
@@ -453,7 +484,7 @@ resolve_flag() {
 }
 
 usage() {
-    local item num key label action flag
+    local item num key label action flag requires
     echo "Usage: ${0##*/} [options]"
     echo
     echo "With no options, PACSWEEP opens the interactive menu."
@@ -461,7 +492,8 @@ usage() {
     echo "Actions:"
     for item in "${menu_items[@]}"; do
         [[ "$item" == \#* ]] && continue
-        IFS='|' read -r num key label action flag <<< "$item"
+        IFS='|' read -r num key label action flag requires <<< "$item"
+        is_available "$requires" || continue
         [[ "$action" == quit ]] && continue
         printf '  --%-10s %s\n' "$(flag_name "$action")" "$label"
     done
@@ -471,7 +503,6 @@ usage() {
     echo "  --no-fzf      Use the numbered menu even if fzf is installed"
     echo "  -h, --help    Show this help"
 }
-
 
 #-------------------------------------------------------------------
 #                   Settings and command-line options              |
