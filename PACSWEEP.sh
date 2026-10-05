@@ -18,7 +18,7 @@ error()   { echo "${red}✗${reset} $*" >&2; }
 
 
 
-
+# Display ASCII art banner
 cat <<'EOF'
 ██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗    ████████╗ ██████╗ 
 ██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝    ╚══██╔══╝██╔═══██╗
@@ -36,19 +36,19 @@ cat <<'EOF'
 EOF
 
 
+# Checks to see if the script is being run as a regular user. If it is being run as root, it will exit with an error message.
 if [[ $EUID -eq 0 ]]; then
     error "Run this script as a regular user, not as root."
     exit 1
 fi
 
 
-
+# Function to check if a command exists
 has() {
     command -v "$1" &> /dev/null
 }
 
-
-
+# 
 run_setup() {
     local name="$1"
     shift
@@ -59,9 +59,12 @@ run_setup() {
         error "Failed to update $name"
     fi
 }
+
+# List of potential package managers to check for
 candidates=(pacman yay paru pikaur trizen flatpak snap pipx cargo npm fwupdmgr)
 found=()
 
+# Check which package managers are available on the system
 for pm in "${candidates[@]}"; do
     if has "$pm"; then
         found+=("$pm")
@@ -69,7 +72,7 @@ for pm in "${candidates[@]}"; do
 done
 
 
-
+# Function to show the last update done to the system, aswell as the kernel version and number of packages installed
 show_info() {
     local last_update
     last_update=$(grep 'starting full system upgrade' /var/log/pacman.log 2> /dev/null | tail -n 1 | cut -c2-11 || true)
@@ -80,6 +83,8 @@ show_info() {
     echo "  Package managers:  ${found[*]}"
 }
 
+
+# Function to update system packages using pacman
 update_system() {
     info "Updating system packages..."
     warn "Kernal updates rebuild drivers and can take several minutes. DO NOT INTERRUPT!"
@@ -91,6 +96,7 @@ update_system() {
     fi
 }
 
+# Function to update npm packages if npm is installed and the global prefix is in the user's home directory
 update_npn() {
     if ! has npm; then
         info "npm not found, skipping npm package updates."
@@ -107,6 +113,7 @@ update_npn() {
     fi
 }
 
+# Function to update firmware using fwupdmgr if it is installed
 update_firmware() {
     if has fwupdmgr; then
         info "Checking for firmware updates..."
@@ -118,6 +125,7 @@ update_firmware() {
     fi
 }
 
+# Function to update AUR packages using the first available AUR helper
 update_aur() {
     local helper
     for helper in yay paru pikar trizen; do
@@ -129,6 +137,8 @@ update_aur() {
     info "No AUR helper found, skipping AUR package updates."
 }
 
+
+# Function to update Flatpak apps if Flatpak is installed
 update_flatpak() {
     if has flatpak; then
         run_setup "Flatpak apps" flatpak update
@@ -137,6 +147,7 @@ update_flatpak() {
     fi
 }
 
+# Function to update Snap packages if Snap is installed
 update_snap() {
     if has snap; then
         run_setup "Snap packages" sudo snap refresh
@@ -145,6 +156,7 @@ update_snap() {
     fi
 }
 
+# Function to update pipx packages if pipx is installed
 update_pipx() {
     if has pipx; then
         run_setup "pipx packages" pipx upgrade-all
@@ -153,6 +165,7 @@ update_pipx() {
     fi
 }
 
+# Function to update Cargo packages if Cargo is installed
 update_cargo() {
     if has cargo; then
         run_setup "Cargo packages" cargo install-update -a
@@ -161,6 +174,7 @@ update_cargo() {
     fi
 }
 
+# Quickly update all package managers in one go
 update_all() {
     if update_system; then
         update_aur
@@ -176,13 +190,14 @@ update_all() {
 }
 
 
-
+# Checks to see if a reboot is required by checking if the current kernel version's modules directory exists. If it doesn't, it warns the user to reboot.
 check_reboot() {
     if [[ ! -d "/usr/lib/modules/$(uname -r)" ]]; then
         warn "Kernel has been updated. Reboot to start using it."
     fi
 }
 
+# Function to display the menu options to the user
 show_menu() {
     echo
     echo "Select an option:"
@@ -203,6 +218,8 @@ show_menu() {
 echo
 show_info
 
+
+# Main loop to display the menu and handle user input
 while true; do
     show_menu
     read -rp "Choose an option: " choice
