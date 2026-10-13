@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
+# ---- Colors and messages ----
+
 if [[ -t 1 ]]; then
     blue=$'\e[1;34m'
     green=$'\e[1;32m'
@@ -17,27 +20,6 @@ success() { echo "${green}✓${reset} $*"; }
 warn()    { echo "${yellow}!${reset} $*"; }
 error()   { echo "${red}✗${reset} $*" >&2; }
 
-
-
-# Display ASCII art banner
-show_banner() {
-cat <<'EOF'
-██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗    ████████╗ ██████╗ 
-██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝    ╚══██╔══╝██╔═══██╗
-██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗         ██║   ██║   ██║
-██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝         ██║   ██║   ██║
-╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗       ██║   ╚██████╔╝
- ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝       ╚═╝    ╚═════╝ 
-                                                                                    
-██████╗  █████╗  ██████╗███████╗██╗    ██╗███████╗███████╗██████╗                    
-██╔══██╗██╔══██╗██╔════╝██╔════╝██║    ██║██╔════╝██╔════╝██╔══██╗                  
-██████╔╝███████║██║     ███████╗██║ █╗ ██║█████╗  █████╗  ██████╔╝                  
-██╔═══╝ ██╔══██║██║     ╚════██║██║███╗██║██╔══╝  ██╔══╝  ██╔═══╝                   
-██║     ██║  ██║╚██████╗███████║╚███╔███╔╝███████╗███████╗██║                       
-╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝                                                                                                             
-EOF
-}
-
 # Checks to see if the script is being run as a regular user. If it is being run as root, it will exit with an error message.
 if [[ $EUID -eq 0 ]]; then
     error "Run this script as a regular user, not as root."
@@ -45,11 +27,12 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 
+# ---- Helpers ----
+
 # Function to check if a command exists
 has() {
     command -v "$1" &> /dev/null
 }
-
 
 succeeded=()
 failed=()
@@ -69,14 +52,7 @@ run_setup() {
 }
 
 
-show_summary() {
-    (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return
-    echo
-    info "Summary"
-    (( ${#succeeded[@]} )) && success "Updated: ${succeeded[*]}"
-    (( ${#failed[@]} )) && error "Failed: ${failed[*]}"
-    return 0
-}
+# ---- Package managers on this system ----
 
 # List of potential package managers to check for
 candidates=(pacman yay paru pikaur trizen flatpak snap pipx cargo npm fwupdmgr)
@@ -90,6 +66,47 @@ for pm in "${candidates[@]}"; do
 done
 
 
+# ---- Banner, summary and reboot check ----
+
+# Display ASCII art banner
+show_banner() {
+cat <<'EOF'
+
+██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗    ████████╗ ██████╗ 
+██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝    ╚══██╔══╝██╔═══██╗
+██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗         ██║   ██║   ██║
+██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝         ██║   ██║   ██║
+╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗       ██║   ╚██████╔╝
+ ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝       ╚═╝    ╚═════╝ 
+                                                                                    
+██████╗  █████╗  ██████╗███████╗██╗    ██╗███████╗███████╗██████╗                    
+██╔══██╗██╔══██╗██╔════╝██╔════╝██║    ██║██╔════╝██╔════╝██╔══██╗                  
+██████╔╝███████║██║     ███████╗██║ █╗ ██║█████╗  █████╗  ██████╔╝                  
+██╔═══╝ ██╔══██║██║     ╚════██║██║███╗██║██╔══╝  ██╔══╝  ██╔═══╝                   
+██║     ██║  ██║╚██████╗███████║╚███╔███╔╝███████╗███████╗██║                       
+╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝                                                                                                             
+EOF
+}
+
+show_summary() {
+    (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return
+    echo
+    info "Summary"
+    (( ${#succeeded[@]} )) && success "Updated: ${succeeded[*]}"
+    (( ${#failed[@]} )) && error "Failed: ${failed[*]}"
+    return 0
+}
+
+# Checks to see if a reboot is required by checking if the current kernel version's modules directory exists. If it doesn't, it warns the user to reboot.
+check_reboot() {
+    if [[ ! -d "/usr/lib/modules/$(uname -r)" ]]; then
+        warn "Kernel has been updated. Reboot to start using it."
+    fi
+}
+
+
+# ---- Info actions ----
+
 # Function to show the last update done to the system, aswell as the kernel version and number of packages installed
 show_info() {
     local last_update
@@ -101,6 +118,32 @@ show_info() {
     echo "  Package managers:  ${found[*]}"
 }
 
+# Read-only look at what would be updated. Installs nothing.
+preview_updates() {
+    info "Pending repo updates:"
+    if has checkupdates; then
+        local rc=0
+        checkupdates || rc=$?
+        (( rc == 2 )) && success "Repo packages are up to date"
+        (( rc == 1 )) && error "checkupdates failed"
+    else
+        warn "Install pacman-contrib to preview repo updates (provides checkupdates)"
+    fi
+
+    local helper
+    for helper in yay paru; do
+        if has "$helper"; then
+            echo
+            info "Pending AUR updates ($helper):"
+            "$helper" -Qua 2>/dev/null || success "AUR packages are up to date"
+            break
+        fi
+    done
+    return 0
+}
+
+
+# ---- Update actions ----
 
 # Function to update system packages using pacman
 update_system() {
@@ -113,40 +156,6 @@ update_system() {
         error "Failed to update system packages"
         failed+=("System packages")
         return 1
-    fi
-}
-
-# Function to update npm packages if npm is installed and the global prefix is in the user's home directory
-update_npm() {
-    if ! has npm; then
-        info "npm not found, skipping npm package updates."
-        return
-    fi
-    
-    local prefix
-    prefix=$(npm config get prefix 2> /dev/null || true)
-
-    if [[ -n "$prefix" && "$prefix" == "$HOME"* ]]; then
-        run_setup "npm packages" npm update -g
-    else
-        info "npm global packages are managed by pacman, skipping"
-    fi
-}
-
-# Function to update firmware using fwupdmgr if it is installed
-update_firmware() {
-    if has fwupdmgr; then
-        info "Checking for firmware updates..."
-        fwupdmgr refresh || true
-        local rc=0
-        fwupdmgr update || rc=$?
-        case "$rc" in
-            0) success "Firmware updated"; succeeded+=("Firmware") ;;
-            2) info "No firmware updates available" ;;
-            *) error "Firmware update failed"; failed+=("Firmware") ;;
-        esac
-    else
-        info "fwupdmgr not found, skipping firmware updates."
     fi
 }
 
@@ -227,7 +236,6 @@ update_aur() {
     run_setup "AUR: ${picks[*]}" "$helper" -S --needed "${picks[@]}"
 }
 
-
 # Function to update Flatpak apps if Flatpak is installed
 update_flatpak() {
     if has flatpak; then
@@ -266,6 +274,40 @@ update_cargo() {
     fi
 }
 
+# Function to update npm packages if npm is installed and the global prefix is in the user's home directory
+update_npm() {
+    if ! has npm; then
+        info "npm not found, skipping npm package updates."
+        return
+    fi
+    
+    local prefix
+    prefix=$(npm config get prefix 2> /dev/null || true)
+
+    if [[ -n "$prefix" && "$prefix" == "$HOME"* ]]; then
+        run_setup "npm packages" npm update -g
+    else
+        info "npm global packages are managed by pacman, skipping"
+    fi
+}
+
+# Function to update firmware using fwupdmgr if it is installed
+update_firmware() {
+    if has fwupdmgr; then
+        info "Checking for firmware updates..."
+        fwupdmgr refresh || true
+        local rc=0
+        fwupdmgr update || rc=$?
+        case "$rc" in
+            0) success "Firmware updated"; succeeded+=("Firmware") ;;
+            2) info "No firmware updates available" ;;
+            *) error "Firmware update failed"; failed+=("Firmware") ;;
+        esac
+    else
+        info "fwupdmgr not found, skipping firmware updates."
+    fi
+}
+
 # Quickly update all package managers in one go
 update_all() {
     if update_system; then
@@ -282,12 +324,7 @@ update_all() {
 }
 
 
-# Checks to see if a reboot is required by checking if the current kernel version's modules directory exists. If it doesn't, it warns the user to reboot.
-check_reboot() {
-    if [[ ! -d "/usr/lib/modules/$(uname -r)" ]]; then
-        warn "Kernel has been updated. Reboot to start using it."
-    fi
-}
+# ---- Menu ----
 
 # Function to display the menu options to the user
 menu_items=(
@@ -326,6 +363,18 @@ show_menu() {
 
 }
 
+# Arrow-key menu with fzf. Prints the chosen numbers, e.g. "3 4 6".
+fzf_pick() {
+    local item num key label action flag
+    for item in "${menu_items[@]}"; do
+        [[ "$item" == \#* ]] && continue
+        IFS='|' read -r num key label action flag <<< "$item"
+        printf '%s) %s%s\n' "$num" "$label" "${flag:+ (sudo)}"
+    done | fzf --multi --reverse --height=60% --prompt="PACSWEEP> " \
+               --header="Up/Down = move, Tab = select several, Enter = run, Esc = quit" \
+         | cut -d')' -f1 | tr '\n' ' '
+}
+
 # Turn one token ("3", "a", "quit") into "function|flag|label". Fails if unknown.
 resolve_choice() {
     local tok="${1,,}" item num key label action flag
@@ -348,30 +397,6 @@ confirm() {
     [[ "${ans,,}" != n* ]]
 }
 
-# Read-only look at what would be updated. Installs nothing.
-preview_updates() {
-    info "Pending repo updates:"
-    if has checkupdates; then
-        local rc=0
-        checkupdates || rc=$?
-        (( rc == 2 )) && success "Repo packages are up to date"
-        (( rc == 1 )) && error "checkupdates failed"
-    else
-        warn "Install pacman-contrib to preview repo updates (provides checkupdates)"
-    fi
-
-    local helper
-    for helper in yay paru; do
-        if has "$helper"; then
-            echo
-            info "Pending AUR updates ($helper):"
-            "$helper" -Qua 2>/dev/null || success "AUR packages are up to date"
-            break
-        fi
-    done
-    return 0
-}
-
 # Run one menu entry ("function|flag|label"), asking first if it needs sudo
 run_entry() {
     local action flag label
@@ -383,20 +408,60 @@ run_entry() {
         fi
         confirm "Run \"$label\"? This uses sudo." || { info "Skipped $label"; return 0; }
     fi
+    did_run=1              # not declined, so the menu keeps this output
     "$action" || true      # one failure shouldn't kill the menu (set -e)
 }
 
-# Arrow-key menu with fzf. Prints the chosen numbers, e.g. "3 4 6".
-fzf_pick() {
-    local item num key label action flag
-    for item in "${menu_items[@]}"; do
-        [[ "$item" == \#* ]] && continue
-        IFS='|' read -r num key label action flag <<< "$item"
-        printf '%s) %s%s\n' "$num" "$label" "${flag:+ (sudo)}"
-    done | fzf --multi --reverse --height=60% --prompt="PACSWEEP> " \
-               --header="Up/Down = move, Tab = select several, Enter = run, Esc = quit" \
-         | cut -d')' -f1 | tr '\n' ' '
+
+# ---- Screen handling ----
+
+# Erase the last N lines printed and leave the cursor where they started.
+# Only at a real terminal, where pressing Enter has moved the cursor down a line.
+erase_lines() {
+    [[ -t 0 && -t 1 ]] || return 0
+    local i
+    for (( i = 0; i < $1; i++ )); do
+        printf '\e[A\e[2K'
+    done
 }
+
+pause() {
+    echo
+    read -rp "Press Enter to return to the menu..." _ || echo
+    erase_lines 1
+}
+
+# Give the menu a clean screen without throwing anything away: scroll what is
+# on screen up into the scrollback, then go back to the top. Erasing instead
+# (clear) only removes the visible lines, so anything that had already scrolled
+# off the top is left behind in pieces.
+fresh_screen() {
+    [[ -t 0 && -t 1 ]] || return 0
+    local rows i
+    rows=$(tput lines 2> /dev/null) || rows=24
+    for (( i = 1; i < rows; i++ )); do echo; done
+    printf '\e[H'
+}
+
+# Throw away what is in the window, leaving nothing behind in the scrollback.
+# Used when every chosen entry was declined, so nothing was changed and there
+# is no log worth keeping. Only possible while all of the output is still in
+# the window: if it was long enough to scroll, the top of it is already in the
+# scrollback and can't be taken back, so fail and let the caller keep it.
+discard_screen() {
+    [[ -t 0 && -t 1 ]] || return 1
+    local rows row i
+    rows=$(tput lines 2> /dev/null) || return 1
+    # Ask the terminal which row the cursor is on. It answers ESC [ row ; col R
+    IFS='[;' read -rs -d R -t 1 -p $'\e[6n' _ row _ < /dev/tty 2> /dev/tty || return 1
+    [[ "$row" =~ ^[0-9]+$ ]] && (( row < rows )) || return 1    # on the last row = it may have scrolled
+    printf '\e[H'
+    for (( i = 0; i < rows; i++ )); do printf '\e[2K\e[B'; done
+    printf '\e[H'
+}
+
+
+# ---- Command-line flags and help ----
 
 # Turn a function name into a flag name: update_aur -> aur, show_info -> info
 flag_name() {
@@ -441,13 +506,10 @@ usage() {
 }
 
 
-pause() {
-    echo
-    read -rp "Press Enter to return to the menu..." _ || true
-}
-
+# ---- Settings and command-line options ----
 
 assume_yes=0
+did_run=0      # set by run_entry when an entry really ran (was not declined)
 use_fzf=0
 [[ -t 0 ]] && has fzf && use_fzf=1   # only when typing at a real terminal
 cli_todo=()
@@ -481,6 +543,7 @@ if (( ${#cli_todo[@]} )); then
     exit 0
 fi
 
+
 # ---- Interactive menu ----
 show_banner
 echo
@@ -497,6 +560,9 @@ while (( running )); do
     else
         show_menu
         read -rp "Choose an option (e.g. 3 4 6) [$default_choice]: " choice || { echo; break; }
+        # Take the menu and this prompt off the screen before anything runs, so
+        # long output can't push half of it up into the scrollback
+        erase_lines $(( $(show_menu | wc -l) + 1 ))
         choice="${choice:-$default_choice}"
     fi
 
@@ -511,8 +577,12 @@ while (( running )); do
             bad=1
         fi
     done
-    if (( bad )); then pause; clear || true; continue; fi
+    if (( bad )); then pause; fresh_screen; continue; fi
 
+    # Give this run a clean window of its own (the first time, the banner is still on it)
+    [[ "${todo[0]:-}" == quit\|* ]] || fresh_screen
+
+    did_run=0
     for entry in "${todo[@]}"; do
         if [[ "$entry" == quit\|* ]]; then
             running=0
@@ -521,10 +591,16 @@ while (( running )); do
         run_entry "$entry"
     done
 
-    if (( running )); then pause; clear || true; fi
+    if (( running )); then
+        if (( did_run )); then
+            pause; fresh_screen     # keep the log: it scrolls up into the scrollback
+        else
+            # Everything was declined, so nothing changed: back to the menu with no log
+            discard_screen || { pause; fresh_screen; }
+        fi
+    fi
 done
 
 show_summary
 check_reboot
 info "All done!"
-
