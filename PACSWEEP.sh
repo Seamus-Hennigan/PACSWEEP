@@ -2,8 +2,9 @@
 set -euo pipefail
 
 
-# ---- Colors and messages ----
-
+#-------------------------------------------------------------------
+#                           Colors & Messages                       |
+#-------------------------------------------------------------------
 if [[ -t 1 ]]; then
     blue=$'\e[1;34m'
     green=$'\e[1;32m'
@@ -27,8 +28,9 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 
-# ---- Helpers ----
-
+#-------------------------------------------------------------------
+#                           Helpers                                |
+#-------------------------------------------------------------------
 # Function to check if a command exists
 has() {
     command -v "$1" &> /dev/null
@@ -52,7 +54,9 @@ run_setup() {
 }
 
 
-# ---- Package managers on this system ----
+#-------------------------------------------------------------------
+#                   List of possible package managers               |
+#-------------------------------------------------------------------
 
 # List of potential package managers to check for
 candidates=(pacman yay paru pikaur trizen flatpak snap pipx cargo npm fwupdmgr)
@@ -65,8 +69,9 @@ for pm in "${candidates[@]}"; do
     fi
 done
 
-
-# ---- Banner, summary and reboot check ----
+#-------------------------------------------------------------------
+#                     Banner, Summary, Reboot Check                 |
+#-------------------------------------------------------------------
 
 # Display ASCII art banner
 show_banner() {
@@ -105,8 +110,9 @@ check_reboot() {
 }
 
 
-# ---- Info actions ----
-
+#-------------------------------------------------------------------
+#                           Info Actions                           |
+#-------------------------------------------------------------------
 # Function to show the last update done to the system, aswell as the kernel version and number of packages installed
 show_info() {
     local last_update
@@ -143,8 +149,9 @@ preview_updates() {
 }
 
 
-# ---- Update actions ----
-
+#-------------------------------------------------------------------
+#                           Update Actions                          |
+#-------------------------------------------------------------------
 # Function to update system packages using pacman
 update_system() {
     info "Updating system packages..."
@@ -195,11 +202,12 @@ update_aur() {
         printf '  %2d) %-28s %s -> %s\n' $((i + 1)) "$name" "$old" "$new"
     done
 
+# Asks the user which AUR Install optoin they would like
     echo
     local input
     read -rp "Install which? [Enter = all, e.g. 1 3 or 2-4, n = cancel]: " input || return 0
 
-
+    # Handles the input from the user on AUR update choices
      case "$input" in
         ""|a|all) picks=("${names[@]}") ;;
         n|N)      info "Skipped AUR updates"; return ;;
@@ -324,7 +332,9 @@ update_all() {
 }
 
 
-# ---- Menu ----
+#-------------------------------------------------------------------
+#                               Menu                               |
+#-------------------------------------------------------------------
 
 # Function to display the menu options to the user
 menu_items=(
@@ -397,6 +407,11 @@ confirm() {
     [[ "${ans,,}" != n* ]]
 }
 
+pause() {
+    echo
+    read -rp "Press Enter to return to the menu..." _ || echo
+}
+
 # Run one menu entry ("function|flag|label"), asking first if it needs sudo
 run_entry() {
     local action flag label
@@ -408,60 +423,12 @@ run_entry() {
         fi
         confirm "Run \"$label\"? This uses sudo." || { info "Skipped $label"; return 0; }
     fi
-    did_run=1              # not declined, so the menu keeps this output
     "$action" || true      # one failure shouldn't kill the menu (set -e)
 }
 
-
-# ---- Screen handling ----
-
-# Erase the last N lines printed and leave the cursor where they started.
-# Only at a real terminal, where pressing Enter has moved the cursor down a line.
-erase_lines() {
-    [[ -t 0 && -t 1 ]] || return 0
-    local i
-    for (( i = 0; i < $1; i++ )); do
-        printf '\e[A\e[2K'
-    done
-}
-
-pause() {
-    echo
-    read -rp "Press Enter to return to the menu..." _ || echo
-    erase_lines 1
-}
-
-# Give the menu a clean screen without throwing anything away: scroll what is
-# on screen up into the scrollback, then go back to the top. Erasing instead
-# (clear) only removes the visible lines, so anything that had already scrolled
-# off the top is left behind in pieces.
-fresh_screen() {
-    [[ -t 0 && -t 1 ]] || return 0
-    local rows i
-    rows=$(tput lines 2> /dev/null) || rows=24
-    for (( i = 1; i < rows; i++ )); do echo; done
-    printf '\e[H'
-}
-
-# Throw away what is in the window, leaving nothing behind in the scrollback.
-# Used when every chosen entry was declined, so nothing was changed and there
-# is no log worth keeping. Only possible while all of the output is still in
-# the window: if it was long enough to scroll, the top of it is already in the
-# scrollback and can't be taken back, so fail and let the caller keep it.
-discard_screen() {
-    [[ -t 0 && -t 1 ]] || return 1
-    local rows row i
-    rows=$(tput lines 2> /dev/null) || return 1
-    # Ask the terminal which row the cursor is on. It answers ESC [ row ; col R
-    IFS='[;' read -rs -d R -t 1 -p $'\e[6n' _ row _ < /dev/tty 2> /dev/tty || return 1
-    [[ "$row" =~ ^[0-9]+$ ]] && (( row < rows )) || return 1    # on the last row = it may have scrolled
-    printf '\e[H'
-    for (( i = 0; i < rows; i++ )); do printf '\e[2K\e[B'; done
-    printf '\e[H'
-}
-
-
-# ---- Command-line flags and help ----
+#-------------------------------------------------------------------
+#                   Command-line flags and help                    |
+#-------------------------------------------------------------------
 
 # Turn a function name into a flag name: update_aur -> aur, show_info -> info
 flag_name() {
@@ -506,10 +473,12 @@ usage() {
 }
 
 
-# ---- Settings and command-line options ----
+#-------------------------------------------------------------------
+#                   Settings and command-line options              |
+#-------------------------------------------------------------------
+
 
 assume_yes=0
-did_run=0      # set by run_entry when an entry really ran (was not declined)
 use_fzf=0
 [[ -t 0 ]] && has fzf && use_fzf=1   # only when typing at a real terminal
 cli_todo=()
@@ -544,25 +513,51 @@ if (( ${#cli_todo[@]} )); then
 fi
 
 
-# ---- Interactive menu ----
-show_banner
-echo
-show_info
+#-------------------------------------------------------------------
+#                         Interactive Menu                          |
+#-------------------------------------------------------------------
+
+# ---- Screen redraw (TEST: section clear) ----
+# The banner and system info stay pinned at the top. Each time the menu comes
+# back, jump to the top-left, write the header over itself, then clear
+# everything below it. Whatever was below (menu, preview, update log) is wiped
+# from the window; anything that had already scrolled off the top stays in the
+# scrollback.
+draw_header() {
+    show_banner
+    echo
+    show_info
+}
+
+redraw_screen() {
+    if [[ -t 0 && -t 1 ]]; then
+        printf '\e[H'
+        draw_header | sed $'s/$/\e[K/'   # \e[K wipes leftovers to the right of each line
+        printf '\e[J'                    # clear from here to the bottom of the window
+    else
+        draw_header
+    fi
+}
+
+# First draw: push whatever is already in the window (your shell prompt, earlier
+# output) up into the scrollback so the redraw doesn't overwrite it
+if [[ -t 0 && -t 1 ]]; then
+    rows=$(tput lines 2> /dev/null) || rows=24
+    for (( i = 1; i < rows; i++ )); do echo; done
+fi
 
 # On Ctrl+C, still show the summary and reboot check before exiting
 trap 'echo; warn "Interrupted"; show_summary; check_reboot; exit 130' INT
 
 running=1
 while (( running )); do
+    redraw_screen
     if (( use_fzf )); then
         choice=$(fzf_pick) || break        # Esc quits
         [[ -z "${choice// /}" ]] && break
     else
         show_menu
         read -rp "Choose an option (e.g. 3 4 6) [$default_choice]: " choice || { echo; break; }
-        # Take the menu and this prompt off the screen before anything runs, so
-        # long output can't push half of it up into the scrollback
-        erase_lines $(( $(show_menu | wc -l) + 1 ))
         choice="${choice:-$default_choice}"
     fi
 
@@ -577,12 +572,8 @@ while (( running )); do
             bad=1
         fi
     done
-    if (( bad )); then pause; fresh_screen; continue; fi
+    if (( bad )); then pause; continue; fi
 
-    # Give this run a clean window of its own (the first time, the banner is still on it)
-    [[ "${todo[0]:-}" == quit\|* ]] || fresh_screen
-
-    did_run=0
     for entry in "${todo[@]}"; do
         if [[ "$entry" == quit\|* ]]; then
             running=0
@@ -591,14 +582,7 @@ while (( running )); do
         run_entry "$entry"
     done
 
-    if (( running )); then
-        if (( did_run )); then
-            pause; fresh_screen     # keep the log: it scrolls up into the scrollback
-        else
-            # Everything was declined, so nothing changed: back to the menu with no log
-            discard_screen || { pause; fresh_screen; }
-        fi
-    fi
+    if (( running )); then pause; fi
 done
 
 show_summary
