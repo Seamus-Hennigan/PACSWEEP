@@ -357,6 +357,44 @@ update_firmware() {
     fi
 }
 
+reflector_args=(--protocol https --latest 20 --age 12 --sort rate --number 10)
+
+
+update_mirrors() {
+    local mirrorlist=/etc/pacman.d/mirrorlist
+    local tmp
+    tmp=$(mktemp)
+
+
+    info "Ranking mirros (this tests download speeds and can take a minute)..."
+    if ! reflector "${reflector_args[@]}" --save "$tmp" || ! grep -q '^Server' "$tmp"; then
+        rm -f "$tmp"
+        error "Reflector failed, mirror list left unchanged"
+        failed+=("Mirror list")
+        return 1
+    fi
+
+
+    echo
+    info "New mirror list:"
+    grep '^Server' "$tmp" | sed 's/^/  /'
+    echo
+
+    if sudo cp "$mirrorlist" "$mirrorlist.bak" && sudo install -m 644 "$tmp" "$mirrorlist"; then
+        rm -f "$tmp"
+        success "Mirror list updated (old one saved as $mirrorlist.bak)"
+        succeeded+=("Mirror list")
+    else
+        rm -f "$tmp"
+        error "Could not write $mirrorlist"
+        failed+=("Mirror list")
+        return 1
+    fi
+}
+
+
+
+
 # Quickly update all package managers in one go
 update_all() {
     if update_system; then
@@ -377,7 +415,7 @@ update_all() {
 show_security() {
     if download_security_tracker; then
         prune_security_data
-        info "$(jq length "$relevant_file") advisories mention packages you have installed"
+        list_advisories
     else
         warn "Skipping security checks"
     fi
@@ -405,9 +443,10 @@ menu_items=(
     "17||npm packages|update_npm||npm"
     "18||Firmware|update_firmware|sudo|fwupdmgr"
     '#Tools'
-    "20|i|Show system info|show_info||"
-  # "21|f|Refresh security data|refresh_security||" ← when built
-    "22|h|Show update history|show_history||"
+    "19|i|Show system info|show_info||"
+    "20|m|Update mirror list (reflector)|update_mirrors|sudo|reflector"
+    "21|h|Show update history|show_history||"
+  # "22|f|Refresh security data|refresh_security||" ← when built
     "0|q|Exit|quit||"
 )
 default_choice="p"

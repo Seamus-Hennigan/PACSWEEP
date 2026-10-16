@@ -29,6 +29,9 @@ It does not install anything without asking. Any step that uses `sudo` asks for 
 - **Detects package managers automatically.** The menu only shows the managers installed on your system.
 - **Preview pending updates.** Shows repo updates (via `checkupdates`) and AUR updates without changing anything.
 - **Security check.** Downloads the [Arch Linux security tracker](https://security.archlinux.org/) data, caches it for an hour, and filters it down to advisories for packages you have installed that are still vulnerable.
+- **Security check** (`--security`): lists advisories affecting your installed packages, most severe first, with CVEs and fixed versions.
+- **Update history** (`--history`): every run is logged to `~/.local/state/pacsweep/pacsweep.log`.
+- **Mirror list refresh** (`--mirrors`): ranks mirrors with `reflector`, backs up the old list, and replaces it.
 - **AUR package picker.** Choose which AUR updates to install (`1 3`, `2-4`, Enter for all, `n` to cancel).
 - **Update everything at once,** or one manager at a time.
 - **Two menu styles.** Use the arrow keys with [`fzf`](https://github.com/junegunn/fzf) if it's installed, or a numbered menu if it isn't.
@@ -164,19 +167,15 @@ PACSWEEP/
 
 ### Ideas / future scope
 
-- [ ] Show security advisories in detail (package, severity, CVE, fixed version), not just the count.
 - [ ] Warn before an upgrade when a pending update fixes a known vulnerability.
 - [ ] Clean up the system: remove orphaned packages, clear the package cache with `paccache`, and find `.pacnew` / `.pacsave` files.
-- [ ] Find mirrors with `reflector`.
 - [ ] Optional snapshot before upgrading (Timeshift / Snapper / btrfs).
 - [ ] Config file (`~/.config/pacsweep/config`) for default actions, skipped managers, and cache time.
-- [ ] Write a log of each run to `~/.local/state/pacsweep/`.
 - [ ] systemd timer or notification for available updates.
 - [ ] Install system-wide (`/usr/local/bin/pacsweep`) and publish an AUR package.
 - [ ] Shell completions for bash, zsh, and fish.
 
 <!-- TODO: move items between sections as they ship -->
-
 ## Contributing
 
 Issues and pull requests are welcome. Before submitting:

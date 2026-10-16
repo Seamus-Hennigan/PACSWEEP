@@ -63,3 +63,61 @@ prune_security_data(){
         | [ $all[0][] | select($keep[.name]) ]
     ' > "$relevant_file"
 }
+
+
+
+list_advisories() {
+    local total
+    total=$(jq length "$relevant_file")
+    if (( total == 0 )); then
+        success "No known vulnerabilities affect your insalled packeages"
+        return 0
+    fi
+
+    local counts
+    counts=$(jq -r  '
+        def rank: {"Critical":0,"High":1,"Medium":2,"Low":3}[.] // 4;
+        group_by(.severity) | sort_by(.[0].severity | rank)
+        | map("\(length) \(.[0].severity)") | join(", ")
+    ' "$relevant_file")
+    warn "$total open advisories affect installed packages ($counts)"
+    echo
+
+    local sev pkgs avg fixed cves color
+    printf '  %-9s %-22s %-10s %-14s %s\n' "SEVERITY" "PACKAGE" "ADVISORY" "FIXED IN" "CVEs"
+    while IFS='|' read -r sev pkgs avg fixed cves; do
+        case "$sev" in
+            Critical|High) color="$red" ;;
+            Medium)        color="$yellow" ;;
+            *)             color="" ;;
+        esac
+        printf ' %s%-9s%s %-22s %-10s %-14s %s\n' "$color" "$sev" "$reset" "$pkgs" "$avg" "$fixed" "$cves"
+    done < <(jq -r '
+        def rank: {"Critical":0,"High":1,"Medium":2,"Low":3}[.] // 4;
+        sort_by((.severity | rank), .packages[0])[]
+        | [ .severity,
+            (.packages | join(",")),
+            .name,
+            (.fixed // "no fix yet"),
+            (if (.issues | length) > 2
+                then "\(.issues[0]) +\((.issues | length) - 1) more"
+                else (.issues | join(" ")) end)
+          ] | join("|")
+    ' "$relevant_file")
+    echo
+    info "Details: https://security.archlinux.org/<ADVISORY>"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
