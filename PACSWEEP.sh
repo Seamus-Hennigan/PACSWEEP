@@ -107,8 +107,35 @@ cat <<'EOF'
 EOF
 }
 
+log_dir="${XDG__STATE_HOME:-$HOME/.local/state}/pacsweep"
+log_file="$log_dir/pacsweep.log"
+
+
+write_log() {
+    (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return 0
+    mkdir -p "$log_dir"
+    printf '%s | updated: %s | failed: %s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" \
+        "${succeeded[*]:-none}" "${failed[*]:-none}" >> "$log_file"
+}
+
+show_history() {
+    if [[ ! -s "$log_file" ]]; then
+        info "No update history yet (it's saved to $log_file after each run)"
+        return 0
+    fi
+    info "Last 15 runs (from $log_file):"
+    tail -n 15 "$log_file" | sed 's/^/ /'
+
+}
+
+
+
+
+
 show_summary() {
     (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return
+    write_log
     echo
     info "Summary"
     (( ${#succeeded[@]} )) && success "Updated: ${succeeded[*]}"
@@ -380,6 +407,7 @@ menu_items=(
     '#Tools'
     "20|i|Show system info|show_info||"
   # "21|f|Refresh security data|refresh_security||" ← when built
+    "22|h|Show update history|show_history||"
     "0|q|Exit|quit||"
 )
 default_choice="p"
