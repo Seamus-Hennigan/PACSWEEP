@@ -400,25 +400,40 @@ show_menu() {
         printf '  %3s) %-3s %s%s%s%s\n' "$num" "${key:+[$key]}" "$color" "$label" "$tag" "$reset"
     done
     echo
+    echo "  Tip: flags work here too, e.g. --preview --aur  (--help for the list)"
+    echo
 }
 
 # Arrow-key menu with fzf. Prints the chosen numbers, e.g. "3 4 6".
+# If the typed query starts with "-" (e.g. "--aur --flatpak"), prints that instead.
 fzf_pick() {
-    local item num key label action flag requires
-    for item in "${menu_items[@]}"; do
+    local item num key label action flag requires out query rc=0
+    out=$(for item in "${menu_items[@]}"; do
         [[ "$item" == \#* ]] && continue
         IFS='|' read -r num key label action flag requires <<< "$item"
         is_available "$requires" || continue
         printf '%s) %s%s\n' "$num" "$label" "${flag:+ (sudo)}"
-    done | fzf --multi --reverse --height=60% --prompt="PACSWEEP> " \
-               --header="Up/Down = move, Tab = select several, Enter = run, Esc = quit" \
-         | cut -d')' -f1 | tr '\n' ' '
+    done | fzf --multi --reverse --height=60% --prompt="PACSWEEP> " --print-query \
+               --header=$'Up/Down = move, Tab = select several, Enter = run, Esc = quit\nOr type flags and press Enter, e.g. --preview --aur (--help for the list)') || rc=$?
+
+    (( rc == 130 )) && return 1        # Esc / Ctrl+C
+    query=$(head -n 1 <<< "$out")
+    if [[ "$query" == -* ]]; then
+        echo "$query"
+        return 0
+    fi
+    (( rc == 0 )) || return 1
+    tail -n +2 <<< "$out" | cut -d')' -f1 | tr '\n' ' '
 }
 
-# Turn one token ("3", "a", "quit") into "function|flag|label". Fails if unknown.
+# Turn one token ("3", "a", "quit", "--aur") into "function|flag|label". Fails if unknown.
 resolve_choice() {
     local tok="${1,,}" item num key label action flag requires
     case "$tok" in quit|exit) tok="q" ;; esac
+    if [[ "$tok" == --* ]]; then
+        resolve_flag "${tok#--}"
+        return
+    fi
     for item in "${menu_items[@]}"; do
         [[ "$item" == \#* ]] && continue
         IFS='|' read -r num key label action flag requires <<< "$item"
@@ -488,6 +503,7 @@ usage() {
     echo "Usage: ${0##*/} [options]"
     echo
     echo "With no options, PACSWEEP opens the interactive menu."
+    echo "All of these can also be typed at the menu prompt."
     echo
     echo "Actions:"
     for item in "${menu_items[@]}"; do
@@ -595,7 +611,13 @@ while (( running )); do
     # Check every choice first so a typo doesn't run half the list
     todo=()
     bad=0
+    line_yes=0 line_help=0 line_no_fzf=0
     for tok in ${choice//,/ }; do
+        case "${tok,,}" in
+            -y|--yes)  line_yes=1;    continue ;;
+            -h|--help) line_help=1;   continue ;;
+            --no-fzf)  line_no_fzf=1; continue ;;
+        esac
         if entry=$(resolve_choice "$tok"); then
             todo+=("$entry")
         else
@@ -605,6 +627,15 @@ while (( running )); do
     done
     if (( bad )); then pause; continue; fi
 
+    if (( line_help )); then usage; fi
+    if (( line_no_fzf && use_fzf )); then
+        use_fzf=0
+        info "Switched to the numbered menu"
+    fi
+
+    # -y only applies to this line, then goes back to what it was
+    saved_yes=$assume_yes
+    if (( line_yes )); then assume_yes=1; fi
     for entry in "${todo[@]}"; do
         if [[ "$entry" == quit\|* ]]; then
             running=0
@@ -612,6 +643,7 @@ while (( running )); do
         fi
         run_entry "$entry"
     done
+    assume_yes=$saved_yes
 
     if (( running )); then pause; fi
 done
