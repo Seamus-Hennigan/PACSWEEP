@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Seamus Hennigan
+
 tracker_url="https://security.archlinux.org/issues/all.json"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pacsweep"
 tracker_file="$cache_dir/all.json"

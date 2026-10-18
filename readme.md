@@ -150,7 +150,7 @@ You can also type command-line flags at the prompt, so you never have to quit an
 ```
 PACSWEEP/
 ├── PACSWEEP.sh                 # main script: menu, flags, update actions
-├── cache/
+├── lib/
 │   └── security_download.sh    # security tracker download + filtering
 ├── pacsweep-logo.svg
 ├── LICENSE
@@ -172,7 +172,7 @@ PACSWEEP/
 - [ ] Optional snapshot before upgrading (Timeshift / Snapper / btrfs).
 - [ ] Config file (`~/.config/pacsweep/config`) for default actions, skipped managers, and cache time.
 - [ ] systemd timer or notification for available updates.
-- [ ] Install system-wide (`/usr/local/bin/pacsweep`) and publish an AUR package.
+- [ ] Install system-wide (`/usr/bin/pacsweep`) and publish an AUR package.
 - [ ] Shell completions for bash, zsh, and fish.
 
 <!-- TODO: move items between sections as they ship -->

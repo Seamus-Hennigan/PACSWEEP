@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Seamus Hennigan
+
+
 set -euo pipefail
 
 
@@ -21,8 +27,22 @@ success() { echo "${green}✓${reset} $*"; }
 warn()    { echo "${yellow}!${reset} $*"; }
 error()   { echo "${red}✗${reset} $*" >&2; }
 
+# Find the security library: next to the script when run from the repo,
+# or in /usr/lib/pacsweep when installed as a package
 script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "$script_dir/cache/security_download.sh"
+lib=""
+for candidate in "$script_dir/lib/security_download.sh" /usr/lib/pacsweep/security_download.sh; do
+    if [[ -f "$candidate" ]]; then
+        lib="$candidate"
+        break
+    fi
+done
+if [[ -z "$lib" ]]; then
+    error "Can't find security_download.sh (looked in $script_dir/lib and /usr/lib/pacsweep)"
+    exit 1
+fi
+# shellcheck source=lib/security_download.sh
+source "$lib"
 
 # Checks to see if the script is being run as a regular user. If it is being run as root, it will exit with an error message.
 if [[ $EUID -eq 0 ]]; then
@@ -107,7 +127,7 @@ cat <<'EOF'
 EOF
 }
 
-log_dir="${XDG__STATE_HOME:-$HOME/.local/state}/pacsweep"
+log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/pacsweep"
 log_file="$log_dir/pacsweep.log"
 
 
