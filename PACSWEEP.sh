@@ -130,9 +130,6 @@ show_history() {
 }
 
 
-
-
-
 show_summary() {
     (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return
     write_log
@@ -167,10 +164,13 @@ show_info() {
 
 # Read-only look at what would be updated. Installs nothing.
 preview_updates() {
+    security_fix_count=0
+    local pending=""
     info "Pending repo updates:"
     if has checkupdates; then
         local rc=0
-        checkupdates || rc=$?
+        pending=$(checkupdates) || rc=$?
+        (( rc == 0 )) && printf '%s\n' "$pending"
         (( rc == 2 )) && success "Repo packages are up to date"
         (( rc == 1 )) && error "checkupdates failed"
     else
@@ -186,6 +186,10 @@ preview_updates() {
             break
         fi
     done
+
+    show_security_fixes "$pending"
+    untracked_noted=()       # the review screen always shows the full note
+    untracked_summary
     return 0
 }
 
@@ -223,6 +227,7 @@ update_aur() {
 
     # Only yay and paru support -Qua; others keep their own prompt
     if [[ "$helper" != "yay" && "$helper" != "paru" ]]; then
+        untracked_note "AUR"
         run_setup "AUR packages" "$helper" -Sua
         return
     fi
@@ -242,6 +247,8 @@ update_aur() {
         names[i]="$name"
         printf '  %2d) %-28s %s -> %s\n' $((i + 1)) "$name" "$old" "$new"
     done
+    echo
+    untracked_note "AUR"
 
 # Asks the user which AUR Install optoin they would like
     echo
@@ -288,6 +295,7 @@ update_aur() {
 # Function to update Flatpak apps if Flatpak is installed
 update_flatpak() {
     if has flatpak; then
+        untracked_note "Flatpak"
         run_setup "Flatpak apps" flatpak update
     else
         info "Flatpak not found, skipping Flatpak app updates."
@@ -297,6 +305,7 @@ update_flatpak() {
 # Function to update Snap packages if Snap is installed
 update_snap() {
     if has snap; then
+        untracked_note "Snap"
         run_setup "Snap packages" sudo snap refresh
     else
         info "Snap not found, skipping Snap package updates."
@@ -306,6 +315,7 @@ update_snap() {
 # Function to update pipx packages if pipx is installed
 update_pipx() {
     if has pipx; then
+        untracked_note "pipx"
         run_setup "pipx packages" pipx upgrade-all
     else
         info "pipx not found, skipping pipx package updates."
@@ -319,6 +329,7 @@ update_cargo() {
     elif ! cargo install-update --version &> /dev/null; then
         info "cargo-update not installed (cargo install cargo-update), skipping Cargo package updates."
     else
+        untracked_note "Cargo"
         run_setup "Cargo packages" cargo install-update -a
     fi
 }
@@ -334,6 +345,7 @@ update_npm() {
     prefix=$(npm config get prefix 2> /dev/null || true)
 
     if [[ -n "$prefix" && "$prefix" == "$HOME"* ]]; then
+        untracked_note "npm"
         run_setup "npm packages" npm update -g
     else
         info "npm global packages are managed by pacman, skipping"
@@ -344,6 +356,7 @@ update_npm() {
 update_firmware() {
     if has fwupdmgr; then
         info "Checking for firmware updates..."
+        untracked_note "Firmware"
         fwupdmgr refresh || true
         local rc=0
         fwupdmgr update || rc=$?
@@ -397,6 +410,7 @@ update_mirrors() {
 
 # Quickly update all package managers in one go
 update_all() {
+    untracked_summary
     if update_system; then
         update_aur
         update_flatpak
@@ -533,7 +547,9 @@ run_entry() {
             preview_updates
             echo
         fi
-        confirm "Run \"$label\"? This uses sudo." || { info "Skipped $label"; return 0; }
+        local note=""
+        (( security_fix_count )) && note=" It fixes $security_fix_count known vulnerabilities."
+        confirm "Run \"$label\"? This uses sudo.$note" || { info "Skipped $label"; return 0; }
     fi
     "$action" || true      # one failure shouldn't kill the menu (set -e)
 }

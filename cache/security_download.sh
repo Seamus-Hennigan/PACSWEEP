@@ -111,13 +111,106 @@ list_advisories() {
 
 
 
+security_fix_count=0
+
+find_security_fixes() {
+    local -A pending_old=() pending_new=()
+    local name old new
+    while read -r name old _ new _; do
+        [[ -n "$new" ]] || continue
+        pending_old[$name]="$old"
+        pending_new[$name]="$new"
+    done <<< "$1"
+
+    local sev pkg fixed avg ncves
+    while IFS='|' read -r _ sev pkg fixed avg ncves; do 
+        new="${pending_new[$pkg]:-}"
+        [[ -n "$new" ]] || continue
+        if (( $(vercmp "$new" "$fixed") >= 0)); then
+            echo "$sev|$pkg|${pending_old[$pkg]}|$new|$avg|$ncves"
+        fi
+    done < <(jq -r '
+        def rank: {"Critical":0,"High":1,"Medium":2,"Low":3}[.] // 4;
+        .[] | select(.fixed != null) | . as $a
+        | .packages[]
+        | [($a.severity | rank), $a.severity, ., $a.fixed, $a.name, ($a.issues | length)]
+        | map(tostring) | join("|")
+    ' "$relevant_file" | sort -t'|' -k1,1n)
+}
+
+show_security_fixes() {
+    local pending="$1"
+    security_fix_count=0
+    [[ -n "$pending" ]] || return 0
+    has jq || return 0
+
+    if ! download_security_tracker > /dev/null 2>&1; then
+        warn "Security data unavailable, cant check what this update fixes"
+        return 0
+    fi
+
+    prune_security_data
+
+    local fixes
+    fixes=$(find_security_fixes "$pending")
+    echo
+    if [[ -z "$fixes" ]]; then
+        info "No known vulnerabilities are fixed by this update"
+        return 0
+    fi
+
+
+    security_fix_count=$(wc -l <<< "$fixes")
+    local counts
+    counts=$(cut -d'|' -f1 <<< "$fixes" | uniq -c | awk '{printf "%s%s %s", sep, $1, $2; sep=", "}')
+    success "This update fixes $security_fix_count known vulnerabilit$( (( security_fix_count == 1 )) && echo y || echo ies) ($counts):"
 
 
 
+    local sev pkg old new avg ncves color
+    while IFS='|' read -r sev pkg old new avg ncves; do
+        case "$sev" in
+            Critical|High) color="$red" ;;
+            Medium)        color="$yellow" ;;
+            *)
+        esac
+         printf '  %s%-9s%s %-20s %s -> %s   %s (%s CVE%s)\n' \
+            "$color" "$sev" "$reset" "$pkg" "$old" "$new" "$avg" "$ncves" "$( (( ncves == 1 )) || echo s)"
+    done <<< "$fixes"
+}
 
 
+# Package sources the Arch security tracker doesn't cover: label|commands
+untracked_sources=(
+    "AUR|yay paru pikaur trizen"
+    "Flatpak|flatpak"
+    "Snap|snap"
+    "pipx|pipx"
+    "Cargo|cargo"
+    "npm|npm"
+    "Firmware|fwupdmgr"
+)
+declare -A untracked_noted=()
 
+# Say once per run that a source can't be checked for vulnerabilities
+untracked_note() {
+    [[ -n "${untracked_noted[$1]:-}" ]] && return 0
+    untracked_noted[$1]=1
+    info "Not covered by the Arch security tracker: $1 (can't be checked for known vulnerabilities)"
+}
 
-
-
-
+# One combined note for every installed source the tracker doesn't cover
+untracked_summary() {
+    local entry label cmds list=()
+    for entry in "${untracked_sources[@]}"; do
+        IFS='|' read -r label cmds <<< "$entry"
+        is_available "$cmds" || continue
+        [[ -n "${untracked_noted[$label]:-}" ]] && continue   # already shown this run
+        list+=("$label")
+        untracked_noted[$label]=1
+    done
+    (( ${#list[@]} )) || return 0
+    local joined
+    joined=$(printf '%s, ' "${list[@]}")
+    info "Not covered by the Arch security tracker: ${joined%, }"
+}
