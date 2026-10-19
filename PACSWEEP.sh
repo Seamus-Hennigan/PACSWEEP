@@ -6,6 +6,7 @@
 
 
 set -euo pipefail
+version="0.1.0"
 
 
 #-------------------------------------------------------------------
@@ -618,6 +619,7 @@ usage() {
     done
     echo
     echo "Other:"
+    echo " -v --version Show the version"
     echo "  -y, --yes     Don't ask before sudo actions"
     echo "  --no-fzf      Use the numbered menu even if fzf is installed"
     echo "  -h, --help    Show this help"
@@ -635,6 +637,7 @@ cli_todo=()
 
 while (( $# )); do
     case "$1" in
+        -v|--version) echo "pacsweep $version"; exit 0 ;;
         -h|--help) usage; exit 0 ;;
         -y|--yes)  assume_yes=1 ;;
         --no-fzf)  use_fzf=0 ;;
