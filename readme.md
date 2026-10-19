@@ -200,10 +200,21 @@ PACSWEEP/
 ├── PACSWEEP.sh                 # main script: menu, flags, update actions
 ├── lib/
 │   └── security_download.sh    # security tracker download, filtering, and matching
+├── packaging/
+│   └── PKGBUILD                # Arch package build file (makepkg -si)
 ├── assets/
 │   └── pacsweep-logo.svg
+├── .gitignore                  # keeps makepkg build output out of git
 ├── LICENSE
 └── readme.md
+```
+
+When installed as a package, the files go here:
+
+```
+/usr/bin/pacsweep                          # PACSWEEP.sh
+/usr/lib/pacsweep/security_download.sh     # lib/security_download.sh
+/usr/share/doc/pacsweep/README.md          # readme.md
 ```
 
 ## Roadmap

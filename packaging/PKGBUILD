@@ -1,0 +1,29 @@
+# Maintainer: Seamus Hennigan seamuscody123@gmail.com/@Seamus-Hennigan
+
+pkgname=pacsweep
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Arch update assistant that shows pending updates and which known vulnerabilities they fix"
+arch=('any')
+url="https://github.com/Seamus-Hennigan/PACSWEEP"
+license=('GPL-3.0-or-later')
+depends=('bash' 'pacman' 'sudo' 'curl' 'jq' 'pacman-contrib')
+optdepends=('fzf: arrow-key menu'
+            'yay: AUR updates with the package picker'
+            'paru: AUR updates with the package picker'
+            'reflector: mirror list refresh'
+            'flatpak: Flatpak app updates'
+            'snapd: Snap package updates'
+            'python-pipx: pipx package updates'
+            'cargo-update: Cargo binary updates'
+            'npm: global npm package updates'
+            'fwupd: firmware updates')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('9d0ddff10fcda76d361203500c8c48f6d31a8083b67350be641c58c872ee2fae')
+
+package() {
+    cd "PACSWEEP-$pkgver"
+    install -Dm755 PACSWEEP.sh "$pkgdir/usr/bin/pacsweep"
+    install -Dm644 lib/security_download.sh "$pkgdir/usr/lib/pacsweep/security_download.sh"
+    install -Dm644 readme.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
