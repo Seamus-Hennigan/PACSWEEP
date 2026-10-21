@@ -219,20 +219,30 @@ When installed as a package, the files go here:
 
 ## Roadmap
 
-### Planned (already stubbed in the menu)
+### v0.1.1 — Packaging and polish
+- [ ] Publish to the AUR
+- [ ] Skip re-filtering security data when nothing changed
+- [ ] Trim the update history log
 
-- [ ] **Arch news** (`--news`): show recent [Arch Linux news](https://archlinux.org/news/) before upgrading, and highlight posts that need manual intervention.
-- [ ] **Full report** (`--report`): one view with pending updates, security advisories, and news.
-- [ ] **Refresh security data** (`--refresh-security`): download the tracker data again even if the cache is still fresh.
+### v0.2.0 — Review before you upgrade
+- [ ] **Arch news** (`--news`): recent [Arch Linux news](https://archlinux.org/news/), highlighting posts that need manual intervention
+- [ ] **Refresh security data** (`--refresh-security`): download the tracker data again even if the cache is fresh
+- [ ] **Full report** (`--report`): pending updates, security fixes, open advisories, and news in one view
 
-### Ideas / future scope
+### v0.3.0 — System maintenance
+- [ ] Remove orphaned packages
+- [ ] Clear the package cache with `paccache`
+- [ ] Find `.pacnew` / `.pacsave` files
 
-- [ ] Clean up the system: remove orphaned packages, clear the package cache with `paccache`, and find `.pacnew` / `.pacsave` files.
-- [ ] Optional snapshot before upgrading (Timeshift / Snapper / btrfs).
-- [ ] Config file (`~/.config/pacsweep/config`) for default actions, skipped managers, and cache time.
-- [ ] systemd timer or notification for available updates.
-- [ ] Install system-wide (`/usr/bin/pacsweep`) and publish an AUR package.
-- [ ] Shell completions for bash, zsh, and fish.
+### v0.4.0 — Configuration and shell integration
+- [ ] Config file (`~/.config/pacsweep/config`) for default actions, skipped managers, and cache time
+- [ ] Shell completions for bash, zsh, and fish
+
+### v0.5.0 — Automation
+- [ ] systemd timer and notification for available updates
+
+### Later
+- [ ] Optional snapshot before upgrading (Timeshift / Snapper / btrfs)
 
 <!-- TODO: move items between sections as they ship -->
 
