@@ -95,22 +95,62 @@ sudo pacman -S --needed curl jq pacman-contrib
 | `fwupd` | Firmware updates |
 
 ## Installation
-
-### From source
-
+ 
+Pick one of the options below. Building the package is recommended on Arch, because pacman then tracks the installed files and can update or remove them cleanly.
+ 
+### Option 1: Build the package (recommended)
+ 
+The [PKGBUILD](packaging/PKGBUILD) builds PACSWEEP from the latest release. You need `base-devel` installed.
+ 
+```bash
+mkdir pacsweep && cd pacsweep
+curl -LO https://raw.githubusercontent.com/Seamus-Hennigan/PACSWEEP/master/packaging/PKGBUILD
+less PKGBUILD     # always read a PKGBUILD before building it
+makepkg -si
+```
+ 
+`makepkg -si` downloads the release, checks its checksum, installs the required dependencies and installs the package. Then run it from anywhere:
+ 
+```bash
+pacsweep
+```
+ 
+To uninstall:
+ 
+```bash
+sudo pacman -R pacsweep
+```
+ 
+### Option 2: Download a release
+ 
+Download the latest version from the [Releases page](https://github.com/Seamus-Hennigan/PACSWEEP/releases) (under **Assets**, choose **Source code (tar.gz)**), or from the terminal:
+ 
+```bash
+curl -LO https://github.com/Seamus-Hennigan/PACSWEEP/archive/refs/tags/v0.1.0.tar.gz
+tar -xzf v0.1.0.tar.gz
+cd PACSWEEP-0.1.0
+./PACSWEEP.sh
+```
+ 
+Install the [required dependencies](#requirements) first. To make it available as `pacsweep` from anywhere, symlink it into your `PATH`:
+ 
+```bash
+ln -s "$PWD/PACSWEEP.sh" ~/.local/bin/pacsweep
+```
+ 
+### Option 3: From source (development version)
+ 
+Clone the repository to get the latest changes, including ones that aren't in a release yet:
+ 
 ```bash
 git clone https://github.com/Seamus-Hennigan/PACSWEEP.git
 cd PACSWEEP
 ./PACSWEEP.sh
 ```
-
-PACSWEEP finds its `lib/` folder relative to the script, so you can run it from anywhere, or symlink it into your `PATH`:
-
-```bash
-ln -s "$PWD/PACSWEEP.sh" ~/.local/bin/pacsweep
-```
-
-<!-- TODO: add "From the AUR" (yay -S pacsweep) once the package is published -->
+ 
+Run `git pull` to update. PACSWEEP finds its `lib/` folder relative to the script, so you can run it from anywhere or symlink it into your `PATH` as in option 2.
+ 
+<!-- TODO: add "From the AUR" (yay -S pacsweep) as option 1 once the package is published -->
 
 ## Usage
 
