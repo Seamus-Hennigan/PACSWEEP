@@ -6,7 +6,7 @@ PACSWEEP runs package updates on your system and uses `sudo` for some of them, s
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.0   | ✅ Yes    |
+| 0.1.1   | ✅ Yes    |
 
 Only the latest release receives security fixes. Please update to the newest version before reporting an issue.
 

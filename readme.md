@@ -216,7 +216,7 @@ You can also type command-line flags at the prompt, so you never have to quit an
 ## How the security check works
 
 1. **Download.** Fetches `https://security.archlinux.org/issues/all.json` into the cache folder. A copy less than an hour old is reused. A new download is checked to be valid JSON before it replaces the old copy, and if the download fails, PACSWEEP uses the cached copy and tells you how old it is.
-2. **Filter to your system.** Compares each advisory with your installed packages (`pacman -Q`). It keeps an advisory if your installed version is older than the fixed version (compared with `vercmp`, the same way pacman compares versions), or if there's no fix yet and the tracker marks it as vulnerable.
+2. **Filter to your system.** Compares each advisory with your installed packages (`pacman -Q`). It keeps an advisory if your installed version is older than the fixed version (compared with `vercmp`, the same way pacman compares versions), or if there's no fix yet and the tracker marks it as vulnerable. The result is cached, and the filter runs again only when the tracker data or your installed packages have changed.
 3. **Security check** (`v`, `--security`) lists those advisories, most severe first, with the advisory ID, CVEs, and the fixed version or "no fix yet".
 4. **Before updating,** Preview and the system update confirmation compare the advisories with your pending updates (`checkupdates`). If a pending version is the fixed version or newer, the update fixes that vulnerability and PACSWEEP lists it.
 
@@ -228,8 +228,9 @@ PACSWEEP keeps a small amount of data in the standard XDG locations:
 
 | Path | Contents |
 | --- | --- |
-| `~/.cache/pacsweep/` (or `$XDG_CACHE_HOME/pacsweep/`) | Security tracker data (`all.json`) and the filtered list (`relevant.json`). Safe to delete; it's downloaded again when needed. |
-| `~/.local/state/pacsweep/pacsweep.log` (or `$XDG_STATE_HOME/pacsweep/`) | Update history, one line per run. |
+| `~/.cache/pacsweep/` (or `$XDG_CACHE_HOME/pacsweep/`) | Security tracker data (`all.json`), the filtered list (`relevant.json`), and `stamp`, which records what the filtered list was built from. Safe to delete; it's rebuilt when needed. |
+| `~/.local/state/pacsweep/pacsweep.log` (or `$XDG_STATE_HOME/pacsweep/`) | Update history, one line per run. Keeps the newest 500 runs; set `PACSWEEP_LOG_LINES` to change that. |
+
 
 The mirror refresh also saves your previous mirror list as `/etc/pacman.d/mirrorlist.bak`.
 
@@ -261,8 +262,8 @@ When installed as a package, the files go here:
 
 ### v0.1.1 — Packaging and polish
 - [ ] Publish to the AUR
-- [ ] Skip re-filtering security data when nothing changed
-- [ ] Trim the update history log
+- [X] Skip re-filtering security data when nothing changed
+- [X] Trim the update history log
 
 ### v0.2.0 — Review before you upgrade
 - [ ] **Arch news** (`--news`): recent [Arch Linux news](https://archlinux.org/news/), highlighting posts that need manual intervention

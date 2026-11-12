@@ -1,7 +1,7 @@
 # Maintainer: Seamus Hennigan seamuscody123@gmail.com/@Seamus-Hennigan
 
 pkgname=pacsweep
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Arch update assistant that shows pending updates and which known vulnerabilities they fix"
 arch=('any')
