@@ -6,7 +6,7 @@
 
 
 set -euo pipefail
-version="0.1.0"
+version="0.1.1"
 
 
 #-------------------------------------------------------------------
@@ -131,6 +131,9 @@ EOF
 log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/pacsweep"
 log_file="$log_dir/pacsweep.log"
 
+log_max_lines="${PACSWEEP_LOG_LINES:-500}"
+[[ "$log_max_lines" =~ ^[1-9][0-9]*$ ]] || log_max_lines=500
+
 
 write_log() {
     (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return 0
@@ -138,6 +141,15 @@ write_log() {
     printf '%s | updated: %s | failed: %s\n' \
         "$(date '+%Y-%m-%d %H:%M:%S')" \
         "${succeeded[*]:-none}" "${failed[*]:-none}" >> "$log_file"
+
+    # Keep only the newest $log_max_lines runs. Trim via a temp file so a crash can't wipe the history.
+    if (( $(wc -l < "$log_file") > log_max_lines )); then
+        if tail -n "$log_max_lines" "$log_file" > "$log_file.tmp"; then
+            mv "$log_file.tmp" "$log_file"
+        else
+            rm -f "$log_file.tmp"
+        fi
+    fi
 }
 
 show_history() {
