@@ -5,6 +5,8 @@ tracker_url="https://security.archlinux.org/issues/all.json"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pacsweep"
 tracker_file="$cache_dir/all.json"
 relevant_file="$cache_dir/relevant.json"
+stamp_file="$cache_dir/stamp"
+filter_version=1 
 
 # Make's sure a fresh-enough copy of the Arch security tracker data is cached.
 # Returns 0 if $tracker_file is usable (fresh or stale), 1 if there's no data at all.
@@ -37,8 +39,17 @@ download_security_tracker() {
 
 
 prune_security_data(){
+    local installed fingerprint
+    installed=$(pacman -Q)
+    fingerprint="$filter_version $(stat -c %Y "$tracker_file") $(md5sum <<< "$installed" | cut -d' ' -f1)"
+
+    # Nothing changed since the last filter: reuse relevant.json
+    if [[ -s "$relevant_file" && -f "$stamp_file" && "$(< "$stamp_file")" == "$fingerprint" ]]; then
+        return 0
+    fi
+
     local installed_json
-    installed_json=$(pacman -Q | jq -Rn '[inputs | split(" ") | {(.[0]): .[1]}] | add')
+    installed_json=$(jq -Rn '[inputs | split(" ") | {(.[0]): .[1]}] | add' <<< "$installed")
 
     local avg have fixed status
     local -a keep=()
@@ -61,11 +72,21 @@ prune_security_data(){
         | [$avg, ., $inst[.], $fixed, $status] | join("|")
     ' "$tracker_file")
 
-        printf '%s\n' "${keep[@]}" | jq -R . | jq -s --slurpfile all "$tracker_file" '
+    # Write to a temp file first so a failed jq can't leave a broken relevant.json behind
+    local tmp="$relevant_file.tmp"
+    if printf '%s\n' "${keep[@]}" | jq -R . | jq -s --slurpfile all "$tracker_file" '
         (map(select(. != "") | {(.): true}) | add // {}) as $keep
         | [ $all[0][] | select($keep[.name]) ]
-    ' > "$relevant_file"
+    ' > "$tmp"; then
+        mv "$tmp" "$relevant_file"
+        echo "$fingerprint" > "$stamp_file"
+    else
+        rm -f "$tmp"
+        error "Failed to filter security data"
+        return 1
+    fi
 }
+
 
 
 
