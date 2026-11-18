@@ -126,9 +126,9 @@ sudo pacman -R pacsweep
 Download the latest version from the [Releases page](https://github.com/Seamus-Hennigan/PACSWEEP/releases) (under **Assets**, choose **Source code (tar.gz)**), or from the terminal:
  
 ```bash
-curl -LO https://github.com/Seamus-Hennigan/PACSWEEP/archive/refs/tags/v0.1.0.tar.gz
-tar -xzf v0.1.0.tar.gz
-cd PACSWEEP-0.1.0
+curl -LO https://github.com/Seamus-Hennigan/PACSWEEP/archive/refs/tags/v0.1.2.tar.gz
+tar -xzf v0.1.2.tar.gz
+cd PACSWEEP-0.1.2
 ./PACSWEEP.sh
 ```
  
