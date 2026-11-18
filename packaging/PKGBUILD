@@ -19,7 +19,7 @@ optdepends=('fzf: arrow-key menu'
             'npm: global npm package updates'
             'fwupd: firmware updates')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('9d0ddff10fcda76d361203500c8c48f6d31a8083b67350be641c58c872ee2fae')
+sha256sums=('715530983c743f1336a6424186009bc12e25730f5f8180fe334b0656166a3464')
 
 package() {
     cd "PACSWEEP-$pkgver"
