@@ -6,7 +6,7 @@ cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pacsweep"
 tracker_file="$cache_dir/all.json"
 relevant_file="$cache_dir/relevant.json"
 stamp_file="$cache_dir/stamp"
-filter_version=1 
+filter_version=2
 
 # Make's sure a fresh-enough copy of the Arch security tracker data is cached.
 # Returns 0 if $tracker_file is usable (fresh or stale), 1 if there's no data at all.
@@ -51,25 +51,31 @@ prune_security_data(){
     local installed_json
     installed_json=$(jq -Rn '[inputs | split(" ") | {(.[0]): .[1]}] | add' <<< "$installed")
 
-    local avg have fixed status
+    local avg have affected fixed status
     local -a keep=()
-    while IFS='|' read -r avg _ have fixed status; do
+    while IFS='|' read -r avg _ have affected fixed status; do
         if [[ -n "$fixed" ]]; then
             # A fix exists: still vulnerable if installed version is older than it
             if (( $(vercmp "$have" "$fixed") < 0 )); then
                 keep+=("$avg")
             fi
         elif [[ "$status" == "Vulnerable" ]]; then
-            # No fix yet and the tracker confirms it's vulnerable
-            keep+=("$avg")
+            # No fix recorded: only count it if the installed upstream version is
+            # the affected one or older. Many open advisories are stale entries the
+            # tracker never closed (e.g. openssl 1.1.1o while 4.x is installed).
+            # pkgrel is stripped so a plain rebuild doesn't hide a real issue.
+            if [[ -z "$affected" ]] || (( $(vercmp "${have%-*}" "${affected%-*}") <= 0 )); then
+                keep+=("$avg")
+            fi
         fi
     done < <(jq -r --argjson inst "$installed_json" '
         .[]
         | select(.status != "Not affected")
         | .name as $avg | .status as $status | (.fixed // "") as $fixed
+        | (.affected // "") as $affected
         | .packages[]
         | select($inst[.])
-        | [$avg, ., $inst[.], $fixed, $status] | join("|")
+        | [$avg, ., $inst[.], $affected, $fixed, $status] | join("|")
     ' "$tracker_file")
 
     # Write to a temp file first so a failed jq can't leave a broken relevant.json behind
