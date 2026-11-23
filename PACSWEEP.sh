@@ -438,7 +438,75 @@ update_mirrors() {
     fi
 }
 
+repo_slug="Seamus-Hennigan/PACSWEEP"
 
+# Function to get the latest release version of PACSWEEP from GitHub
+latest_release() {
+    curl -fsSL --max-time 10 "https://api.github.com/repos/$repo_slug/releases/latest" \
+        | jq -r '.tag_name // empty' | sed 's/^v//'
+}
+
+update_pacsweep() {
+    local self owner latest
+    self=$(readlink -f "${BASH_SOURCE[0]}")
+
+    # Clones the repo and checks for new commits if PACSWEEP is installed from git
+    if [[ -d "$script_dir/.git" ]]; then
+        info "Checking for new commits..."
+        git -C "$script_dir" fetch --quiet || { error "git fetch failed"; return 1; }
+        local behind
+        behind=$(git -C "$script_dir" rev-list --count 'HEAD..@{u}' 2>/dev/null) || behind=0
+        if (( behind == 0 )); then
+            success "PACSWEEP is up to date"
+            return 0
+        fi
+        git -C "$script_dir" log --oneline 'HEAD..@{u}'
+        confirm "Pull $behind new commit(s)?" || return 0
+        git -C "$script_dir" pull --ff-only || { error "git pull failed (do you have local changes?)"; return 1; }
+        restart_pacsweep
+        return
+    fi
+
+    # Compares against the latest release
+    latest=$(latest_release) || true
+    if [[ -z "$latest" ]]; then
+        error "Could not check for new release"
+        return 1
+    fi
+    if (( $(vercmp "$latest" "$version") <= 0 )); then
+        success "PACSWEEP $version is the latest version"
+        return 0
+    fi
+    info "New PACSWEEP release: $latest (current: $version)"
+
+    # Installed as pacman package: rebuild and install the new version
+    if owner=$(pacman -Qqo "$self" 2>/dev/null) && [[ "$owner" == pacsweep ]]; then
+        has makepkg || { error "makepkg not found (install base-devel)"; return 1; }
+        confirm "Rebuild and install pacsweep $latest? This uses sudo." || return 0
+        local build
+        build=$(mktemp -d) || return 1
+        if curl -fsSL "https://raw.githubusercontent.com/$repo_slug/master/packaging/PKGBUILD" -o "$build/PKGBUILD" \
+           && (cd "$build" && makepkg -si --noconfirm); then
+            rm -rf "$build"
+            restart_pacsweep
+        else
+            error "Build failed; files left in $build"
+            return 1
+        fi
+        return
+    fi
+
+    # If anything else, just points to the releases page
+    warn "Not installed from git or the package, so it can't update itself."
+    echo "   Download it from https://github.com/$repo_slug/releases/latest"
+}
+
+# Start the new version so the user doesn't have to keep running the old one
+restart_pacsweep() {
+    success "Updated. Restarting PACSWEEP..."
+    sleep 1
+    exec "$(readlink -f "${BASH_SOURCE[0]}")"
+}
 
 
 # Quickly update all package managers in one go
@@ -494,6 +562,7 @@ menu_items=(
     "20|m|Update mirror list (reflector)|update_mirrors|sudo|reflector"
     "21|h|Show update history|show_history||"
   # "22|f|Refresh security data|refresh_security||" ← when built
+    "23||Update PACSWEEP|update_pacsweep||"
     "0|q|Exit|quit||"
 )
 default_choice="p"
