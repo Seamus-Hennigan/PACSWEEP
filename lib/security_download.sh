@@ -8,17 +8,20 @@ relevant_file="$cache_dir/relevant.json"
 stamp_file="$cache_dir/stamp"
 filter_version=2
 
-# Make's sure a fresh-enough copy of the Arch security tracker data is cached.
-# Returns 0 if $tracker_file is usable (fresh or stale), 1 if there's no data at all.
+# Makes sure a fresh-enough copy of the Arch security tracker data is cached.
+# Pass 1 to skip the cache and always download.
+# Returns 0 if the data is usable, 1 if there's none at all,
+# 2 if a forced download failed and the stale cache is used.
 download_security_tracker() {
+    local force="${1:-0}"
     mkdir -p "$cache_dir"
 
     # Fresh enough? (modified in the last 60 minutes)
-    if [[ -n "$(find "$tracker_file" -mmin -60 2>/dev/null)" ]]; then
+    if (( ! force )) && [[ -n "$(find "$tracker_file" -mmin -60 2>/dev/null)" ]]; then
         info "Using cached security data"
         return 0
     fi
-
+    
     info "Downloading security data..."
     local tmp="$tracker_file.tmp"
     if curl -fsSL --max-time 20 -o "$tmp" "$tracker_url" && jq -e 'type == "array"' "$tmp" &>/dev/null; then
@@ -30,6 +33,7 @@ download_security_tracker() {
     rm -f "$tmp"
     if [[ -f "$tracker_file" ]]; then
         warn "Download failed, using cached copy from $(date -r "$tracker_file" '+%Y-%m-%d %H:%M')"
+        (( force )) && return 2
         return 0
     fi
 
@@ -37,6 +41,30 @@ download_security_tracker() {
     return 1
 }
 
+
+refresh_security() {
+    local cmd
+    for cmd in curl jq; do
+        if ! has "$cmd"; then
+            error "$cmd is needed to refresh security data"
+            return 1
+        fi
+    done
+
+    local rc=0
+    download_security_tracker 1 || rc=$?
+    (( rc == 1 )) && return 1
+
+    prune_security_data || return 1
+
+    local total
+    total=$(jq length "$relevant_file") || { error "Could not read $relevant_file"; return 1; }
+    if (( rc == 2 )); then
+        warn "Refresh failed: $total advisories affect installed packages (from the cached copy)"
+    else
+        success "Security data refreshed: $total advisories affect installed packages"
+    fi
+}
 
 prune_security_data(){
     local installed fingerprint
@@ -100,7 +128,7 @@ list_advisories() {
     local total
     total=$(jq length "$relevant_file")
     if (( total == 0 )); then
-        success "No known vulnerabilities affect your insalled packeages"
+        success "No known vulnerabilities affect your installed packages"
         return 0
     fi
 

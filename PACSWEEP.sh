@@ -561,7 +561,7 @@ menu_items=(
     "19|i|Show system info|show_info||"
     "20|m|Update mirror list (reflector)|update_mirrors|sudo|reflector"
     "21|h|Show update history|show_history||"
-  # "22|f|Refresh security data|refresh_security||" ← when built
+    "22|f|Refresh security data|refresh_security||"
     "23||Update PACSWEEP|update_pacsweep||"
     "0|q|Exit|quit||"
 )
@@ -664,7 +664,8 @@ run_entry() {
 flag_name() {
     local n="${1#update_}"
     n="${n#show_}"
-    echo "${n%_updates}"
+    n="${n%_updates}"
+    echo "${n//_/-}"
 }
 
 # Find the menu entry for a command-line flag (without the leading --)
@@ -696,7 +697,7 @@ usage() {
         IFS='|' read -r num key label action flag requires <<< "$item"
         is_available "$requires" || continue
         [[ "$action" == quit ]] && continue
-        printf '  --%-10s %s\n' "$(flag_name "$action")" "$label"
+        printf '  --%-18s %s\n' "$(flag_name "$action")" "$label"
     done
     echo
     echo "Other:"
