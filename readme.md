@@ -32,6 +32,8 @@ It never installs anything without asking. Every step that uses `sudo` asks for 
 - **Preview pending updates** (`--preview`). Shows repo updates (via `checkupdates`) and AUR updates without changing anything.
 - **Shows what an update fixes.** Before a system upgrade, lists the known vulnerabilities the pending updates fix, most severe first, and mentions the count in the confirmation prompt.
 - **Security check** (`--security`). Lists advisories from the [Arch Linux security tracker](https://security.archlinux.org/) that affect your installed package versions, most severe first, with CVEs and fixed versions.
+- **Full report** (`--report`). Pending updates, the vulnerabilities they fix, and open advisories in one read-only view, with a summary at the end. If a check can't run (for example, when you're offline), the summary says so instead of reporting "up to date".
+- **Refresh security data** (`--refresh-security`). Downloads the tracker data again even if the cached copy is less than an hour old.
 - **Honest about coverage.** Tells you which of your package sources (AUR, Flatpak, and so on) the security tracker can't check, so no warning is never mistaken for "safe".
 - **AUR package picker.** Choose which AUR updates to install (`1 3`, `2-4`, Enter for all, `n` to cancel).
 - **Mirror list refresh** (`--mirrors`). Ranks mirrors with `reflector`, backs up the old list, and replaces it.
@@ -166,6 +168,7 @@ Run the script with no arguments:
 Review (start here)
     1) [p] Preview pending updates
     2) [v] Security check
+    4) [r] Full report
 
 Update
    10) [a] Update all packages (sudo)
@@ -178,6 +181,8 @@ Tools
    19) [i] Show system info
    20) [m] Update mirror list (reflector) (sudo)
    21) [h] Show update history
+   22) [f] Refresh security data
+   23)     Update PACSWEEP
     0) [q] Exit
 ```
 
@@ -188,6 +193,7 @@ You can also type command-line flags at the prompt, so you never have to quit an
 ### Command-line flags
 
 ```bash
+./PACSWEEP.sh --report           # pending updates, fixes and open advisories, with a summary
 ./PACSWEEP.sh --preview          # show pending updates and what they fix, then exit
 ./PACSWEEP.sh --security         # list advisories affecting installed packages
 ./PACSWEEP.sh --all              # update everything
@@ -197,8 +203,10 @@ You can also type command-line flags at the prompt, so you never have to quit an
 
 | Flag | Action |
 | --- | --- |
+| `--report` | Full report: pending updates, security fixes, and open advisories, with a summary |
 | `--preview` | Preview pending updates and the vulnerabilities they fix |
 | `--security` | Security check |
+| `--refresh-security` | Download the security tracker data again, even if the cache is fresh |
 | `--all` | Update all packages |
 | `--system` | System packages (pacman) |
 | `--aur` | AUR packages |
@@ -207,6 +215,7 @@ You can also type command-line flags at the prompt, so you never have to quit an
 | `--info` | Show system info |
 | `--mirrors` | Update mirror list with reflector |
 | `--history` | Show update history |
+| `--pacsweep` | Update PACSWEEP itself |
 | `-y`, `--yes` | Don't ask before sudo actions |
 | `--no-fzf` | Use the numbered menu even if fzf is installed |
 | `-h`, `--help` | Show help |
@@ -215,10 +224,11 @@ You can also type command-line flags at the prompt, so you never have to quit an
 
 ## How the security check works
 
-1. **Download.** Fetches `https://security.archlinux.org/issues/all.json` into the cache folder. A copy less than an hour old is reused. A new download is checked to be valid JSON before it replaces the old copy, and if the download fails, PACSWEEP uses the cached copy and tells you how old it is.
+1. **Download.** Fetches `https://security.archlinux.org/issues/all.json` into the cache folder. A copy less than an hour old is reused; `--refresh-security` (`f`) downloads it again anyway. A new download is checked to be valid JSON before it replaces the old copy, and if the download fails, PACSWEEP uses the cached copy and tells you how old it is.
 2. **Filter to your system.** Compares each advisory with your installed packages (`pacman -Q`). It keeps an advisory if your installed version is older than the fixed version (compared with `vercmp`, the same way pacman compares versions), or if there's no fix yet, the tracker marks it as vulnerable, and your installed version is the affected version or older (ignoring the package release number). This skips old open advisories the tracker never closed, such as one filed against openssl 1.1.1 when you have a newer release. The result is cached, and the filter runs again only when the tracker data or your installed packages have changed.
 3. **Security check** (`v`, `--security`) lists those advisories, most severe first, with the advisory ID, CVEs, and the fixed version or "no fix yet".
 4. **Before updating,** Preview and the system update confirmation compare the advisories with your pending updates (`checkupdates`). If a pending version is the fixed version or newer, the update fixes that vulnerability and PACSWEEP lists it.
+5. **Full report** (`r`, `--report`) runs the preview and the security check together and ends with a summary of pending updates, fixes, and open advisories.
 
 Missing data never blocks an update. If you're offline with no cached data, or `jq` isn't available, PACSWEEP skips the security section and carries on.
 
@@ -266,11 +276,11 @@ When installed as a package, the files go here:
 - [X] Trim the update history log
 
 ### v0.2.0 — Review before you upgrade
-- [ ] **Arch news** (`--news`): recent [Arch Linux news](https://archlinux.org/news/), highlighting posts that need manual intervention
-- [ ] **Refresh security data** (`--refresh-security`): download the tracker data again even if the cache is fresh
-- [ ] **Full report** (`--report`): pending updates, security fixes, open advisories, and news in one view
+- [X] **Refresh security data** (`--refresh-security`): download the tracker data again even if the cache is fresh
+- [X] **Full report** (`--report`): pending updates, security fixes, and open advisories in one view
 
 ### v0.3.0 — System maintenance
+- [ ] **Arch news** (`--news`): recent [Arch Linux news](https://archlinux.org/news/), highlighting posts that need manual intervention, also shown in `--report`
 - [ ] Remove orphaned packages
 - [ ] Clear the package cache with `paccache`
 - [ ] Find `.pacnew` / `.pacsave` files
