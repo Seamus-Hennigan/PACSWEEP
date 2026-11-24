@@ -127,6 +127,8 @@ prune_security_data(){
 list_advisories() {
     local total
     total=$(jq length "$relevant_file")
+    advisory_count=$total
+    advisory_nofix_count=$(jq '[.[] | select(.fixed == null)] | length' "$relevant_file")
     if (( total == 0 )); then
         success "No known vulnerabilities affect your installed packages"
         return 0
@@ -170,6 +172,10 @@ list_advisories() {
 
 
 security_fix_count=0
+
+# Open advisory counts, set by list_advisories (used by the report summary)
+advisory_count=0
+advisory_nofix_count=0
 
 find_security_fixes() {
     local -A pending_old=() pending_new=()

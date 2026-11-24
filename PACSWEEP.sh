@@ -60,6 +60,11 @@ has() {
     command -v "$1" &> /dev/null
 }
 
+section () {
+    echo
+    echo "${bold}== $* ==${reset}"
+}
+
 is_available() {
     local req
     for req in $1; do
@@ -73,6 +78,10 @@ is_available() {
 #Sets an empty array for both Succeded and Failed
 succeeded=()
 failed=()
+
+# Pending update counts, set by preview_updates (used by the report summary)
+pending_repo_count=0
+pending_aur_count=0
 
 # Function that will record the results of the update process and display a message to the user. 
 #It takes the name of the package manager and the command to run as arguments.
@@ -198,24 +207,47 @@ show_info() {
 # Read-only look at what would be updated. Installs nothing.
 preview_updates() {
     security_fix_count=0
+    pending_repo_count=0
+    pending_aur_count=0
     local pending=""
     info "Pending repo updates:"
     if has checkupdates; then
         local rc=0
         pending=$(checkupdates) || rc=$?
-        (( rc == 0 )) && printf '%s\n' "$pending"
+        if (( rc == 0 )); then
+            printf '%s\n' "$pending"
+            pending_repo_count=$(grep -c . <<< "$pending" || true)
+        fi
         (( rc == 2 )) && success "Repo packages are up to date"
-        (( rc == 1 )) && error "checkupdates failed"
+        if (( rc == 1 )); then
+            error "checkupdates failed"
+            pending_repo_count=-1
+        fi
     else
         warn "Install pacman-contrib to preview repo updates (provides checkupdates)"
+        pending_repo_count=-1
     fi
 
-    local helper
+    local helper aur errfile aur_rc
     for helper in yay paru; do
         if has "$helper"; then
             echo
             info "Pending AUR updates ($helper):"
-            "$helper" -Qua 2>/dev/null || success "AUR packages are up to date"
+            # -Qua exits non-zero both for "nothing to update" and for errors,
+            # so stderr is what tells them apart (it's empty when there's nothing to update)
+            errfile=$(mktemp)
+            aur_rc=0
+            aur=$("$helper" -Qua 2> "$errfile") || aur_rc=$?
+            if [[ -n "$aur" ]]; then
+                printf '%s\n' "$aur"
+                pending_aur_count=$(grep -c . <<< "$aur" || true)
+            elif (( aur_rc != 0 )) && [[ -s "$errfile" ]]; then
+                error "Couldn't check AUR updates ($helper failed, are you offline?)"
+                pending_aur_count=-1
+            else
+                success "AUR packages are up to date"
+            fi
+            rm -f "$errfile"
             break
         fi
     done
@@ -227,6 +259,58 @@ preview_updates() {
 }
 
 
+show_report() {
+    section "Pending updates"
+    preview_updates
+
+    section "Open advisories"
+    advisory_count=-1
+    show_security
+
+    if declare -F show_news > /dev/null; then
+        section "Arch News"
+        show_news
+    fi
+
+    section "Summary"
+    
+    if (( pending_repo_count < 0 )); then
+        warn "Couldn't check repo updates"
+    elif (( pending_repo_count )); then
+        info "$pending_repo_count repo update(s) available"
+    else
+        success "Repo packages are up to date"
+    fi
+
+    if has yay || has paru; then
+        if (( pending_aur_count < 0 )); then
+            warn "Couldn't check AUR updates"
+        elif (( pending_aur_count )); then
+            info "$pending_aur_count AUR update(s) available"
+        else
+            success "AUR packages are up to date"
+        fi
+    fi
+
+    if (( security_fix_count )); then
+        success "Updating fixes $security_fix_count known vulnerabilit$( (( security_fix_count == 1 )) && echo y || echo ies)"
+    fi
+
+    if (( advisory_count < 0 )); then
+        warn "Security data unavailable, open advisories not checked"
+    elif (( advisory_count )); then
+        warn "$advisory_count open advisor$( (( advisory_count == 1 )) && echo y || echo ies) affect installed packages ($advisory_nofix_count with no fix yet)"
+    else
+        success "No open advisories affect installed packages"
+    fi
+
+    if (( pending_repo_count > 0 || pending_aur_count > 0 )); then
+        echo
+        info "Run --all to install them (or --system / --aur for one source)"
+    fi
+
+    return 0
+}
 #-------------------------------------------------------------------
 #                           Update Actions                          |
 #-------------------------------------------------------------------
@@ -546,7 +630,7 @@ menu_items=(
     "1|p|Preview pending updates|preview_updates||"
     "2|v|Security check|show_security||"
   # "3|n|Arch news|show_news||"                    ← when built
-  # "4|r|Full report|show_report||"                ← when built
+    "4|r|Full report|show_report||"
     '#Update'
     "10|a|Update all packages|update_all|sudo|"
     "11|s|System packages (pacman)|update_system|sudo|pacman"
