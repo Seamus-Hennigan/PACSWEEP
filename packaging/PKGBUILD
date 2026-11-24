@@ -1,7 +1,7 @@
 # Maintainer: Seamus Hennigan seamuscody123@gmail.com/@Seamus-Hennigan
 
 pkgname=pacsweep
-pkgver=0.1.2
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Arch update assistant that shows pending updates and which known vulnerabilities they fix"
 arch=('any')
@@ -19,7 +19,7 @@ optdepends=('fzf: arrow-key menu'
             'npm: global npm package updates'
             'fwupd: firmware updates')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('afd1725e97a6f0e99764577fd6f1350ccce146de98b426744c754fda0725172c')
+sha256sums=('acbc47b440c8de36e80b333a3d488e34ebad5b77df787a2bb08eb3fa3cb97dd8')
 
 package() {
     cd "PACSWEEP-$pkgver"
