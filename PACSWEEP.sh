@@ -6,7 +6,7 @@
 
 
 set -euo pipefail
-version="0.2.0"
+version="0.2.1"
 
 
 #-------------------------------------------------------------------
@@ -144,12 +144,25 @@ log_max_lines="${PACSWEEP_LOG_LINES:-500}"
 [[ "$log_max_lines" =~ ^[1-9][0-9]*$ ]] || log_max_lines=500
 
 
+# Join's the arguments with ", ", skipping duplicates (Keeps the first-seen order).
+# Prints "none" if there are no arguments.
+join_unique() {
+    local -A seen=()
+    local item out=""
+    for item in "$@"; do
+        [[ -n "${seen[$item]:-}" ]] && continue
+        seen[$item]=1
+        out+="${out:+, }$item"
+    done
+    echo "${out:-none}"
+}
+
 write_log() {
     (( ${#succeeded[@]} + ${#failed[@]} == 0 )) && return 0
     mkdir -p "$log_dir"
     printf '%s | updated: %s | failed: %s\n' \
         "$(date '+%Y-%m-%d %H:%M:%S')" \
-        "${succeeded[*]:-none}" "${failed[*]:-none}" >> "$log_file"
+        "$(join_unique "${succeeded[@]}")" "$(join_unique "${failed[@]}")" >> "$log_file"
 
     # Keep only the newest $log_max_lines runs. Trim via a temp file so a crash can't wipe the history.
     if (( $(wc -l < "$log_file") > log_max_lines )); then
@@ -350,7 +363,19 @@ update_aur() {
     fi
     
     local -a lines=() names=() picks=()
-    mapfile -t lines < <("$helper" -Qua 2> /dev/null)
+
+    local out errfile aur_rc=0
+    errfile=$(mktemp)
+    out=$("$helper" -Qua 2> "$errfile") || aur_rc=$?
+    if [[ -z "$out" ]] && (( aur_rc != 0 )) && [[ -s "$errfile" ]]; then
+        error "Couldn't check AUR updates ($helper failed, are you offline?)"
+        head -n 3 "$errfile" | sed 's/^/   /'
+        rm -f "$errfile"
+        failed+=("AUR packages")
+        return 1
+    fi
+    rm -f "$errfile"
+    [[ -n "$out" ]] && mapfile -t lines <<< "$out"
 
     if (( "${#lines[@]}" == 0 )); then
         info "No AUR packages to update."
@@ -496,7 +521,7 @@ update_mirrors() {
     tmp=$(mktemp)
 
 
-    info "Ranking mirros (this tests download speeds and can take a minute)..."
+    info "Ranking mirrors (this tests download speeds and can take a minute)..."
     if ! reflector "${reflector_args[@]}" --save "$tmp" || ! grep -q '^Server' "$tmp"; then
         rm -f "$tmp"
         error "Reflector failed, mirror list left unchanged"
@@ -539,7 +564,11 @@ update_pacsweep() {
         info "Checking for new commits..."
         git -C "$script_dir" fetch --quiet || { error "git fetch failed"; return 1; }
         local behind
-        behind=$(git -C "$script_dir" rev-list --count 'HEAD..@{u}' 2>/dev/null) || behind=0
+        if ! behind=$(git -C "$script_dir" rev-list --count 'HEAD..@{u}' 2>/dev/null); then
+            warn "This branch has no upstream branch to compare against, so updates can't be checked"
+            echo "   Set one with e.g.: git -C \"$script_dir\" branch --set-upstream-to=origin/master"
+            return 1
+        fi
         if (( behind == 0 )); then
             success "PACSWEEP is up to date"
             return 0
@@ -729,12 +758,14 @@ run_entry() {
     local action flag label
     IFS='|' read -r action flag label <<< "$1"
     if [[ "$flag" == sudo ]] && (( ! assume_yes )); then
+        local note=""
         if [[ "$action" == update_system || "$action" == update_all ]]; then
             preview_updates
             echo
+            if (( security_fix_count )); then
+                note=" It fixes $security_fix_count known vulnerabilit$( (( security_fix_count == 1 )) && echo y || echo ies)."
+            fi
         fi
-        local note=""
-        (( security_fix_count )) && note=" It fixes $security_fix_count known vulnerabilities."
         confirm "Run \"$label\"? This uses sudo.$note" || { info "Skipped $label"; return 0; }
     fi
     "$action" || true      # one failure shouldn't kill the menu (set -e)
@@ -785,7 +816,7 @@ usage() {
     done
     echo
     echo "Other:"
-    echo " -v --version Show the version"
+    echo "  -v, --version Show the version"
     echo "  -y, --yes     Don't ask before sudo actions"
     echo "  --no-fzf      Use the numbered menu even if fzf is installed"
     echo "  -h, --help    Show this help"
@@ -821,6 +852,10 @@ while (( $# )); do
     shift
 done
 
+# On Ctrl+C, still show the summary and reboot check before exiting
+# (set here so it covers both the flags and the interactive menu)
+trap 'echo; warn "Interrupted"; show_summary; check_reboot; exit 130' INT
+
 # Flags given: run them and exit, no menu
 if (( ${#cli_todo[@]} )); then
     for entry in "${cli_todo[@]}"; do
@@ -828,6 +863,7 @@ if (( ${#cli_todo[@]} )); then
     done
     show_summary
     check_reboot
+    (( ${#failed[@]} == 0 )) || exit 1
     exit 0
 fi
 
@@ -864,9 +900,6 @@ if [[ -t 0 && -t 1 ]]; then
     rows=$(tput lines 2> /dev/null) || rows=24
     for (( i = 1; i < rows; i++ )); do echo; done
 fi
-
-# On Ctrl+C, still show the summary and reboot check before exiting
-trap 'echo; warn "Interrupted"; show_summary; check_reboot; exit 130' INT
 
 running=1
 while (( running )); do

@@ -236,7 +236,7 @@ show_security_fixes() {
         case "$sev" in
             Critical|High) color="$red" ;;
             Medium)        color="$yellow" ;;
-            *)
+            *)             color="" ;;
         esac
          printf '  %s%-9s%s %-20s %s -> %s   %s (%s CVE%s)\n' \
             "$color" "$sev" "$reset" "$pkg" "$old" "$new" "$avg" "$ncves" "$( (( ncves == 1 )) || echo s)"
